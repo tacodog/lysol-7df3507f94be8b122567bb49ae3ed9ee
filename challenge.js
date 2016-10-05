@@ -22,25 +22,25 @@ window.initGame = function () {
         // x,y coordinates of a robot and o is a string representing their orientation. a sample object is provided below
         //
 
+        var input = input.toLowerCase().replace(/\n/, ' ');
+        var tokens = _.words(input);
+        var bounds = [];
+        var robos = [];
+        bounds.push(tokens.shift()); // x
+        bounds.push(tokens.shift()); // y
+        _.forEach(_.chunk(tokens, 4), function(roboTokens) {
+            robos.push({
+                x: roboTokens[0],
+                y: roboTokens[1],
+                o: roboTokens[2],
+                command: roboTokens[3]
+            });
+        });
+
         // replace this with a correct object
         var parsed = {
-            bounds: [20, 20],
-            robos: [{
-                x: 2,
-                y: 1,
-                o: 'W',
-                command: 'rlrlrff'
-            }, {
-                x: 12,
-                y: 10,
-                o: 'E',
-                command: 'fffffffffff'
-            }, {
-                x: 18,
-                y: 8,
-                o: 'N',
-                command: 'frlrlrlr'
-            }]
+            bounds: bounds,
+            robos: robos
         };
 
         return parsed;
