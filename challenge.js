@@ -46,6 +46,41 @@ window.initGame = function () {
         return parsed;
     };
 
+    var _forward = function(robo) {
+        switch(robo.o) {
+            case 'n':
+                robo.y--;
+                break;
+
+            case 's':
+                robo.y++;
+                break;
+
+            case 'w':
+                robo.x--;
+                break;
+
+            case 'e':
+                robo.x++;
+                break;
+        }
+        return robo;
+    };
+
+    var _turn = function(robo, right) {
+        // I could use a switch, but what fun is that?
+        var directions = (right) ? 'wsen' : 'nesw';
+
+        // Just shift the index of the string, and wrap it around if we need to.
+        var newDirection = directions[directions.indexOf(robo.o) - 1];
+        if (typeof newDirection == 'undefined') {
+            newDirection = directions[directions.length-1]; // wrap around
+        }
+
+        robo.o = newDirection;
+        return robo;
+    };
+
     // this function replaces the robos after they complete one instruction
     // from their commandset
     var tickRobos = function (robos) {
