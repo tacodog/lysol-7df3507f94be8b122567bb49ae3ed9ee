@@ -106,10 +106,38 @@ window.initGame = function () {
         // of its commandset–encounters this 'scent', it should refuse any commands that would
         // cause it to leave the playfield.
 
-        // write robot logic here
+        var newRobos = [];
+        _.forEach(robos, function(robo) {
+            var commandToken = robo.command.split('')[0];
+
+            // Handle each command, and if we deplete it, just do nothing.
+            switch(commandToken) {
+                case 'f':
+                    robo = _forward(robo);
+                    break;
+
+                case 'l':
+                    robo = _turn(robo);
+                    break;
+
+                case 'r':
+                    // second arg = true means turn right.
+                    robo = _turn(robo, true);
+                    break;
+
+                case undefined:
+                    // no commands left, noop
+                    break;
+
+                default:
+                    throw 'Unknown command.';
+            }
+            robo.command = robo.command.slice(1); // pull it off the command stack
+            newRobos.push(robo);
+        });
 
         // return the mutated robos object from the input to match the new state
-        // return ???;
+        return newRobos;
     };
     // mission summary function
     var missionSummary = function (robos) {
