@@ -10,6 +10,11 @@ window.initGame = function () {
     var command =
         '5 3 \n 1 1 s\n ffffff\n 2 1 w \n flfffffrrfffffff\n 0 3 w\n LLFFFLFLFL';
 
+    var _currentState = {
+        bounds: [],
+        robos: []
+    };
+
     // this function parses the input string so that we have useful names/parameters
     // to define the playfield and robots for subsequent steps
     var parseInput = function (input) {
@@ -33,7 +38,8 @@ window.initGame = function () {
                 x: parseInt(roboTokens[0]),
                 y: parseInt(roboTokens[1]),
                 o: roboTokens[2],
-                command: roboTokens[3]
+                command: roboTokens[3],
+                dead: false
             });
         });
 
@@ -43,27 +49,61 @@ window.initGame = function () {
             robos: robos
         };
 
+        _currentState = parsed;
         return parsed;
     };
 
-    var _forward = function(robo) {
+    var _deadRobotAt = function(x, y, robos) {
+        var robosAt = _.filter(robos, function(robo) {
+            return robo.x == x && robo.y == y;
+        });
+
+        var result = false;
+        _.each(robosAt, function(robo) {
+            if (robo.dead) {
+                result = true;
+                return false;
+            }
+        });
+        return result;
+    };
+
+    var _forward = function(robo, robos) {
+        var deadRobotStinks = _deadRobotAt(robo.x, robo.y, robos);
+        var oldRobo = robo; // in case it needs to back off that ledge my friend
+        var newX = robo.x, newY = robo.y;
+
         switch(robo.o) {
             case 'n':
-                robo.y--;
+                newY--;
                 break;
 
             case 's':
-                robo.y++;
+                newY++;
                 break;
 
             case 'w':
-                robo.x--;
+                newX--;
                 break;
 
             case 'e':
-                robo.x++;
+                newX++;
                 break;
         }
+
+        var outOfBounds =
+            newX < 0 || newX > _currentState.bounds[0] ||
+            newY < 0 || newY > _currentState.bounds[1];
+
+        if (!deadRobotStinks) {
+            if (outOfBounds) {
+                robo.dead = true;
+            } else {
+                robo.x = newX;
+                robo.y = newY;
+            }
+        }
+
         return robo;
     };
 
@@ -106,14 +146,17 @@ window.initGame = function () {
         // of its commandset–encounters this 'scent', it should refuse any commands that would
         // cause it to leave the playfield.
 
-        var newRobos = [];
-        _.forEach(robos, function(robo) {
+        _.forEach(robos, function(robo, index, _robos) {
+            // it's dead
+            if (robo.dead) {
+                return true;
+            }
             var commandToken = robo.command.split('')[0];
 
             // Handle each command, and if we deplete it, just do nothing.
             switch(commandToken) {
                 case 'f':
-                    robo = _forward(robo);
+                    robo = _forward(robo, robos);
                     break;
 
                 case 'l':
@@ -133,11 +176,15 @@ window.initGame = function () {
                     throw 'Unknown command.';
             }
             robo.command = robo.command.slice(1); // pull it off the command stack
-            newRobos.push(robo);
+            _robos[index] = robo;
         });
 
+        _currentState.robos = robos;
+
         // return the mutated robos object from the input to match the new state
-        return newRobos;
+        return _.filter(robos, function(robo) {
+            return !robo.dead;
+        });
     };
     // mission summary function
     var missionSummary = function (robos) {
