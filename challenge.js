@@ -4,82 +4,95 @@
 if (!window) {
     window = {};
 };
+
+// This is a running state we used to track boundaries and lost robots.
+var _currentState = {
+    bounds: [],
+    deadRobos: []
+};
+
+var _deadRobotAt = function(x, y) {
+    var robosAt = _.filter(_currentState.deadRobos, function(robo) {
+        return robo.x === x && robo.y === y;
+    });
+    return robosAt.length > 0;
+};
+
+var Robo = function(x, y, o, command) {
+    this.x = x;
+    this.y = y;
+    this.o = o;
+    this.command = command;
+    this.dead = false;
+    this.longestCommand = false; 
+}
+
+Robo.prototype.trimCommand = function() {
+    this.command = this.command.slice(1);
+};
+
+Robo.prototype.turn = function(right) {
+    // I could use a switch, but what fun is that?
+    var directions = (right) ? 'wsen' : 'nesw';
+
+    // Just shift the index of the string, and wrap it around if we need to.
+    var newDirection = directions[directions.indexOf(this.o) - 1];
+    if (typeof newDirection === 'undefined') {
+        newDirection = directions[directions.length-1]; // wrap around
+    }
+
+    this.o = newDirection;
+    this.trimCommand();
+};
+
+Robo.prototype.forward = function() {
+    var newX = this.x, newY = this.y;
+
+    switch(this.o) {
+        case 'n':
+            newY--;
+            break;
+
+        case 's':
+            newY++;
+            break;
+
+        case 'w':
+            newX--;
+            break;
+
+        case 'e':
+            newX++;
+            break;
+    }
+
+    var outOfBounds =
+        newX < 0 || newX > _currentState.bounds[0] ||
+        newY < 0 || newY > _currentState.bounds[1];
+    var deadRobotHere = _deadRobotAt(this.x, this.y);
+
+    if (!deadRobotHere && outOfBounds) {
+        this.dead = true;
+    }
+
+    if (!outOfBounds) {
+        this.x = newX;
+        this.y = newY;
+    }
+    this.trimCommand();
+};
+
 window.initGame = function () {
     console.log('initgame');
     // you're really better off leaving this line alone, i promise.
     var command =
         '5 3 \n 1 1 s\n ffffff\n 2 1 w \n flfffffrrfffffff\n 0 3 w\n LLFFFLFLFL';
 
-    // This is a running state we used to track boundaries and lost robots.
-    var _currentState = {
-        bounds: [],
-        deadRobos: []
-    };
-
-    var _deadRobotAt = function(x, y) {
-        var robosAt = _.filter(_currentState.deadRobos, function(robo) {
-            return robo.x === x && robo.y === y;
-        });
-        return robosAt.length > 0;
-    };
-
-    var _turn = function(robo, right) {
-        // I could use a switch, but what fun is that?
-        var directions = (right) ? 'wsen' : 'nesw';
-
-        // Just shift the index of the string, and wrap it around if we need to.
-        var newDirection = directions[directions.indexOf(robo.o) - 1];
-        if (typeof newDirection === 'undefined') {
-            newDirection = directions[directions.length-1]; // wrap around
-        }
-
-        robo.o = newDirection;
-        return robo;
-    };
-
-    var _forward = function(robo) {
-        var newX = robo.x, newY = robo.y;
-
-        switch(robo.o) {
-            case 'n':
-                newY--;
-                break;
-
-            case 's':
-                newY++;
-                break;
-
-            case 'w':
-                newX--;
-                break;
-
-            case 'e':
-                newX++;
-                break;
-        }
-
-        var outOfBounds =
-            newX < 0 || newX > _currentState.bounds[0] ||
-            newY < 0 || newY > _currentState.bounds[1];
-        var deadRobotHere = _deadRobotAt(robo.x, robo.y);
-
-        if (!deadRobotHere && outOfBounds) {
-            robo.dead = true;
-        }
-
-        if (!outOfBounds) {
-            robo.x = newX;
-            robo.y = newY;
-        }
-
-        return robo;
-    };
-
     // this function parses the input string so that we have useful names/parameters
     // to define the playfield and robots for subsequent steps
     var parseInput = function (input) {
         //
-        // task #1 
+        // task #1
         //
         // replace the 'parsed' var below to be the string 'command' parsed into an object we can pass to genworld();
         // genworld expects an input object in the form { 'bounds': [3, 8], 'robos': [{x: 2, y: 1, o: 'W', command: 'rlrlff'}]}
@@ -94,14 +107,11 @@ window.initGame = function () {
         bounds.push(parseInt(tokens.shift())); // x
         bounds.push(parseInt(tokens.shift())); // y
         _.forEach(_.chunk(tokens, 4), function(roboTokens) {
-            robos.push({
-                x: parseInt(roboTokens[0]),
-                y: parseInt(roboTokens[1]),
-                o: roboTokens[2],
-                command: roboTokens[3],
-                dead: false,
-                longestCommand: false
-            });
+            robos.push(new Robo(
+                parseInt(roboTokens[0]), // x
+                parseInt(roboTokens[1]), // y
+                roboTokens[2], // o
+                roboTokens[3])); // command
         });
 
         // Find the longest starting command
@@ -157,16 +167,16 @@ window.initGame = function () {
             // Handle each command, and if we deplete it, just do nothing.
             switch(commandToken) {
                 case 'f':
-                    robo = _forward(robo);
+                    robo.forward();
                     break;
 
                 case 'l':
-                    robo = _turn(robo);
+                    robo.turn();
                     break;
 
                 case 'r':
                     // second arg = true means turn right.
-                    robo = _turn(robo, true);
+                    robo.turn(true);
                     break;
 
                 case undefined:
@@ -176,7 +186,6 @@ window.initGame = function () {
                 default:
                     throw 'Unknown command.';
             }
-            robo.command = robo.command.slice(1); // pull it off the command stack
             if (robo.dead) {
                 _currentState.deadRobos.push(robo);
             } else {
