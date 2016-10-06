@@ -10,9 +10,69 @@ window.initGame = function () {
     var command =
         '5 3 \n 1 1 s\n ffffff\n 2 1 w \n flfffffrrfffffff\n 0 3 w\n LLFFFLFLFL';
 
+    // This is a running state we used to track boundaries and lost robots.
     var _currentState = {
         bounds: [],
-        robos: []
+        deadRobos: []
+    };
+
+    var _deadRobotAt = function(x, y) {
+        var robosAt = _.filter(_currentState.deadRobos, function(robo) {
+            return robo.x === x && robo.y === y;
+        });
+        return robosAt.length > 0;
+    };
+
+    var _turn = function(robo, right) {
+        // I could use a switch, but what fun is that?
+        var directions = (right) ? 'wsen' : 'nesw';
+
+        // Just shift the index of the string, and wrap it around if we need to.
+        var newDirection = directions[directions.indexOf(robo.o) - 1];
+        if (typeof newDirection === 'undefined') {
+            newDirection = directions[directions.length-1]; // wrap around
+        }
+
+        robo.o = newDirection;
+        return robo;
+    };
+
+    var _forward = function(robo) {
+        var newX = robo.x, newY = robo.y;
+
+        switch(robo.o) {
+            case 'n':
+                newY--;
+                break;
+
+            case 's':
+                newY++;
+                break;
+
+            case 'w':
+                newX--;
+                break;
+
+            case 'e':
+                newX++;
+                break;
+        }
+
+        var outOfBounds =
+            newX < 0 || newX > _currentState.bounds[0] ||
+            newY < 0 || newY > _currentState.bounds[1];
+        var deadRobotHere = _deadRobotAt(robo.x, robo.y);
+
+        if (!deadRobotHere && outOfBounds) {
+            robo.dead = true;
+        }
+
+        if (!outOfBounds) {
+            robo.x = newX;
+            robo.y = newY;
+        }
+
+        return robo;
     };
 
     // this function parses the input string so that we have useful names/parameters
@@ -39,9 +99,19 @@ window.initGame = function () {
                 y: parseInt(roboTokens[1]),
                 o: roboTokens[2],
                 command: roboTokens[3],
-                dead: false
+                dead: false,
+                longestCommand: false
             });
         });
+
+        // Find the longest starting command
+        var longestCommandIndex = 0;
+        _.forEach(robos, function(robo, index) {
+            if (robo.command.length > robos[longestCommandIndex].command.length) {
+                longestCommandIndex = index;
+            }
+        });
+        robos[longestCommandIndex].longestCommand = true;
 
         // replace this with a correct object
         var parsed = {
@@ -49,76 +119,9 @@ window.initGame = function () {
             robos: robos
         };
 
-        _currentState = parsed;
+        _currentState.bounds = bounds;
+
         return parsed;
-    };
-
-    var _deadRobotAt = function(x, y, robos) {
-        var robosAt = _.filter(robos, function(robo) {
-            return robo.x == x && robo.y == y;
-        });
-
-        var result = false;
-        _.each(robosAt, function(robo) {
-            if (robo.dead) {
-                result = true;
-                return false;
-            }
-        });
-        return result;
-    };
-
-    var _forward = function(robo, robos) {
-        var deadRobotStinks = _deadRobotAt(robo.x, robo.y, robos);
-        var oldRobo = robo; // in case it needs to back off that ledge my friend
-        var newX = robo.x, newY = robo.y;
-
-        switch(robo.o) {
-            case 'n':
-                newY--;
-                break;
-
-            case 's':
-                newY++;
-                break;
-
-            case 'w':
-                newX--;
-                break;
-
-            case 'e':
-                newX++;
-                break;
-        }
-
-        var outOfBounds =
-            newX < 0 || newX > _currentState.bounds[0] ||
-            newY < 0 || newY > _currentState.bounds[1];
-
-        if (!deadRobotStinks) {
-            if (outOfBounds) {
-                robo.dead = true;
-            } else {
-                robo.x = newX;
-                robo.y = newY;
-            }
-        }
-
-        return robo;
-    };
-
-    var _turn = function(robo, right) {
-        // I could use a switch, but what fun is that?
-        var directions = (right) ? 'wsen' : 'nesw';
-
-        // Just shift the index of the string, and wrap it around if we need to.
-        var newDirection = directions[directions.indexOf(robo.o) - 1];
-        if (typeof newDirection == 'undefined') {
-            newDirection = directions[directions.length-1]; // wrap around
-        }
-
-        robo.o = newDirection;
-        return robo;
     };
 
     // this function replaces the robos after they complete one instruction
@@ -146,17 +149,15 @@ window.initGame = function () {
         // of its commandset–encounters this 'scent', it should refuse any commands that would
         // cause it to leave the playfield.
 
+        var displaySummary = false;
+        var newRobos = [];
         _.forEach(robos, function(robo, index, _robos) {
-            // it's dead
-            if (robo.dead) {
-                return true;
-            }
             var commandToken = robo.command.split('')[0];
 
             // Handle each command, and if we deplete it, just do nothing.
             switch(commandToken) {
                 case 'f':
-                    robo = _forward(robo, robos);
+                    robo = _forward(robo);
                     break;
 
                 case 'l':
@@ -176,15 +177,26 @@ window.initGame = function () {
                     throw 'Unknown command.';
             }
             robo.command = robo.command.slice(1); // pull it off the command stack
-            _robos[index] = robo;
+            if (robo.dead) {
+                _currentState.deadRobos.push(robo);
+            } else {
+                newRobos.push(robo);
+            }
+
+            // If the robot with the longest original command finishes, or all robots die:
+            // (This never happens with the default command)
+            if (robo.command.length === 0 && robo.longestCommand) {
+                displaySummary = true;
+            }
         });
 
-        _currentState.robos = robos;
+        // If all robots die: (this also never happens with the default command)
+        if (newRobos.length === 0 || displaySummary) {
+            missionSummary(robos);
+        }
 
         // return the mutated robos object from the input to match the new state
-        return _.filter(robos, function(robo) {
-            return !robo.dead;
-        });
+        return newRobos;
     };
     // mission summary function
     var missionSummary = function (robos) {
@@ -193,6 +205,27 @@ window.initGame = function () {
         //
         // summarize the mission and inject the results into the DOM elements referenced in readme.md
         //
+
+        var livingUl = document.getElementById('robots');
+        _.each(robos, function(robo) {
+            var li = document.createElement('li');
+            var text = document.createTextNode(
+                'Position ' + robo.x.toString() + ', ' + robo.y.toString() +
+                ' | Orientation: ' + robo.o.toUpperCase());
+            li.appendChild(text);
+            livingUl.appendChild(li);
+        });
+
+        var deadUl = document.getElementById('lostRobots');
+        _.each(_currentState.deadRobos, function(robo) {
+            var li = document.createElement('li');
+            var text = document.createTextNode(
+                'I died going ' + robo.o.toUpperCase() +
+                ' from coordinates: ' + robo.x.toString() + ', ' + robo.y.toString());
+            li.appendChild(text);
+            deadUl.appendChild(li);
+        });
+
         return;
     };
 
