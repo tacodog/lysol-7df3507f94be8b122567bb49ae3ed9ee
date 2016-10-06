@@ -5,14 +5,15 @@ if (!window) {
     window = {};
 };
 
-// This is a running state we used to track boundaries and lost robots.
-var _currentState = {
-    bounds: [],
-    deadRobos: []
+//// Classes
+
+var GameState = function(bounds) {
+    this.bounds = bounds;
+    this.deadRobos = [];
 };
 
-var _deadRobotAt = function(x, y) {
-    var robosAt = _.filter(_currentState.deadRobos, function(robo) {
+GameState.prototype.deadRoboAt = function(x, y) {
+    var robosAt = _.filter(this.deadRobos, function(robo) {
         return robo.x === x && robo.y === y;
     });
     return robosAt.length > 0;
@@ -25,10 +26,37 @@ var Robo = function(x, y, o, command) {
     this.command = command;
     this.dead = false;
     this.longestCommand = false; 
-}
+};
 
 Robo.prototype.trimCommand = function() {
     this.command = this.command.slice(1);
+};
+
+Robo.prototype.processCommand = function() {
+    var commandToken = this.command.split('')[0];
+
+    // Handle each command, and if we deplete it, just do nothing.
+    switch(commandToken) {
+        case 'f':
+            this.forward();
+            break;
+
+        case 'l':
+            this.turn();
+            break;
+
+        case 'r':
+            // second arg = true means turn right.
+            this.turn(true);
+            break;
+
+        case undefined:
+            // no commands left, noop
+            break;
+
+        default:
+            throw 'Unknown command.';
+    }
 };
 
 Robo.prototype.turn = function(right) {
@@ -67,9 +95,9 @@ Robo.prototype.forward = function() {
     }
 
     var outOfBounds =
-        newX < 0 || newX > _currentState.bounds[0] ||
-        newY < 0 || newY > _currentState.bounds[1];
-    var deadRobotHere = _deadRobotAt(this.x, this.y);
+        newX < 0 || newX > currentState.bounds[0] ||
+        newY < 0 || newY > currentState.bounds[1];
+    var deadRobotHere = currentState.deadRoboAt(this.x, this.y);
 
     if (!deadRobotHere && outOfBounds) {
         this.dead = true;
@@ -81,6 +109,11 @@ Robo.prototype.forward = function() {
     }
     this.trimCommand();
 };
+
+/////
+
+// GameState instance kept in global scope we use to track boundaries and lost robots.
+var currentState;
 
 window.initGame = function () {
     console.log('initgame');
@@ -129,7 +162,8 @@ window.initGame = function () {
             robos: robos
         };
 
-        _currentState.bounds = bounds;
+        currentState = new GameState(bounds);
+        currentState.bounds = bounds;
 
         return parsed;
     };
@@ -162,32 +196,10 @@ window.initGame = function () {
         var displaySummary = false;
         var newRobos = [];
         _.forEach(robos, function(robo, index, _robos) {
-            var commandToken = robo.command.split('')[0];
+            robo.processCommand();
 
-            // Handle each command, and if we deplete it, just do nothing.
-            switch(commandToken) {
-                case 'f':
-                    robo.forward();
-                    break;
-
-                case 'l':
-                    robo.turn();
-                    break;
-
-                case 'r':
-                    // second arg = true means turn right.
-                    robo.turn(true);
-                    break;
-
-                case undefined:
-                    // no commands left, noop
-                    break;
-
-                default:
-                    throw 'Unknown command.';
-            }
             if (robo.dead) {
-                _currentState.deadRobos.push(robo);
+                currentState.deadRobos.push(robo);
             } else {
                 newRobos.push(robo);
             }
@@ -226,7 +238,7 @@ window.initGame = function () {
         });
 
         var deadUl = document.getElementById('lostRobots');
-        _.each(_currentState.deadRobos, function(robo) {
+        _.each(currentState.deadRobos, function(robo) {
             var li = document.createElement('li');
             var text = document.createTextNode(
                 'I died going ' + robo.o.toUpperCase() +
