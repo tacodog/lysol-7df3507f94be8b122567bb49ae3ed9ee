@@ -26,12 +26,12 @@ window.initGame = function () {
         var tokens = _.words(input);
         var bounds = [];
         var robos = [];
-        bounds.push(tokens.shift()); // x
-        bounds.push(tokens.shift()); // y
+        bounds.push(parseInt(tokens.shift())); // x
+        bounds.push(parseInt(tokens.shift())); // y
         _.forEach(_.chunk(tokens, 4), function(roboTokens) {
             robos.push({
-                x: roboTokens[0],
-                y: roboTokens[1],
+                x: parseInt(roboTokens[0]),
+                y: parseInt(roboTokens[1]),
                 o: roboTokens[2],
                 command: roboTokens[3]
             });
